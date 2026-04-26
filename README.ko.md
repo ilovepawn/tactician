@@ -45,18 +45,14 @@
 
 ### 사전 요구사항
 
-- Python 3.13+
 - Docker & Docker Compose
-- Stockfish (`brew install stockfish` on macOS)
-- [uv](https://docs.astral.sh/uv/) 패키지 매니저
+
+배치 워커 이미지에 Python 3.13, 모든 의존성, Stockfish 18(소스 빌드)이 포함되어 있어 호스트에 별도 설치가 필요 없습니다.
 
 ### 실행
 
 ```bash
-# 의존성 설치
-uv sync
-
-# 환경 설정 파일 복사
+# 환경 설정 파일 복사 (호스트 모드 실행 때만 필요. compose는 .env 무시)
 cp .env.example .env
 
 # MySQL + MinIO 시작
@@ -65,10 +61,27 @@ docker compose up -d
 # DB 스키마 적용
 docker exec -i tactician-db-1 mysql -u tactician -ptactician tactician < migrations/001_init.sql
 
-# 일배치 실행 (운영 모드, S3에서 가져옴)
-uv run python -m tactician.batch --date 2026-04-26
+# 배치 워커 이미지 빌드 (최초 1회 / Dockerfile·의존성 변경 시)
+docker compose build batch
 
-# 또는 로컬 PGN 파일로 실행 (테스트)
+# 일배치 실행 (운영 모드, S3에서 가져옴)
+docker compose run --rm batch --date 2026-04-26
+
+# 로컬 PGN 파일로 실행. 호스트 디렉터리는 LICHESS_DUMP_DIR로 마운트.
+LICHESS_DUMP_DIR=/Volumes/bobo-01 \
+  docker compose run --rm batch \
+    --file /mnt/lichess/lichess_db_standard_rated_2026-03_eval.pgn.zst \
+    --max-games 200
+```
+
+> `batch` 서비스는 `profiles: [batch]`로 묶여 있어 `docker compose up -d`로 자동 실행되지 않습니다. 항상 `docker compose run --rm batch ...` 형태로 호출하세요.
+
+#### 호스트 모드 (개발 편의용)
+
+이미지 리빌드 없이 빠르게 반복하고 싶다면 호스트에서 직접 실행할 수도 있습니다. Python 3.13, [uv](https://docs.astral.sh/uv/), Stockfish (`brew install stockfish`)가 필요합니다:
+
+```bash
+uv sync
 uv run python -m tactician.batch --file games.pgn.zst --max-games 100
 ```
 
@@ -77,7 +90,7 @@ uv run python -m tactician.batch --file games.pgn.zst --max-games 100
 ## 배치 CLI
 
 ```bash
-uv run python -m tactician.batch [options]
+docker compose run --rm batch [options]
 ```
 
 | 옵션 | 설명 |
@@ -124,6 +137,7 @@ tactician/
 │   ├── config.py      # 환경 설정
 │   └── adapters/      # MySQL writer, S3 reader, tagger I/O
 ├── migrations/        # plain SQL 마이그레이션
+├── Dockerfile         # 배치 워커 이미지 (Python + Stockfish 18)
 ├── docker-compose.yml
 └── pyproject.toml
 ```

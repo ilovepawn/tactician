@@ -11,19 +11,26 @@ The puzzle detection and theme classification logic is vendored from [Lichess's 
 ## Commands
 
 ```bash
-# Install dependencies
-uv sync
-
 # Start MySQL + MinIO
 docker compose up -d
 
 # Apply schema (idempotent on fresh DB)
 docker exec -i tactician-db-1 mysql -u tactician -ptactician tactician < migrations/001_init.sql
 
-# Daily batch (production mode — pulls from S3)
-uv run python -m tactician.batch --date 2026-04-26
+# Build the batch worker image (Python + Stockfish 18 bundled)
+docker compose build batch
 
-# Ad-hoc: run on a local PGN file, optionally limited
+# Daily batch (production mode — pulls from S3)
+docker compose run --rm batch --date 2026-04-26
+
+# Ad-hoc: run on a local PGN file mounted from the host via LICHESS_DUMP_DIR
+LICHESS_DUMP_DIR=/Volumes/bobo-01 \
+  docker compose run --rm batch \
+    --file /mnt/lichess/lichess_db_standard_rated_2026-03_eval.pgn.zst \
+    --max-games 200
+
+# Host-mode (developer convenience — needs uv + host Stockfish)
+uv sync
 uv run python -m tactician.batch --file path/to/games.pgn.zst --max-games 100
 
 # Inspect generated puzzles
@@ -47,7 +54,8 @@ docker exec tactician-db-1 mysql -u tactician -ptactician tactician \
 - **Module collision workaround.** Both `upstream/generator/model.py` and `upstream/tagger/model.py` define different `Puzzle` dataclasses. They cannot coexist on `sys.path`. `batch.py:_use_upstream()` swaps the active path per stage (generator vs tagger) and clears cached modules in between.
 - **Magic eval values.** Upstream signals mate puzzles via `cp = 999999998` / `999999999` instead of NULL. We persist these as-is (not NULLs) to keep upstream behavior intact. Aggregate queries (`AVG(cp)` etc.) need to filter `cp < 999999000`.
 - **MySQL collation.** The `fen` column uses `utf8mb4_bin` because FEN is case-sensitive (`K` = white king, `k` = black king). The default `utf8mb4_0900_ai_ci` would silently treat them as equal.
-- **Stockfish.** Generator invokes Stockfish via UCI subprocess (`chess.engine.SimpleEngine.popen_uci`). Path is configured via `STOCKFISH_PATH` env var. Match host version to production for reproducible analysis (currently Stockfish 18).
+- **Stockfish.** Generator invokes Stockfish via UCI subprocess (`chess.engine.SimpleEngine.popen_uci`). Path is configured via `STOCKFISH_PATH` env var. The batch container builds Stockfish 18 from source (Dockerfile stage 1) so analysis is reproducible across machines; host-mode runs use whatever `STOCKFISH_PATH` points at and should match (currently Stockfish 18).
+- **Batch container.** `docker compose run --rm batch ...` is the canonical entrypoint. The service uses `profiles: [batch]` so it does not auto-start with `docker compose up -d`. Compose passes container hostnames (`MYSQL_HOST=db`, `S3_ENDPOINT_URL=http://s3:9000`) and the bundled Stockfish path as env vars, overriding `.env`. Mount ad-hoc PGN dumps via `LICHESS_DUMP_DIR=<host-dir> docker compose run ...` — the dir lands at `/mnt/lichess` read-only inside the container.
 - **`pymysql[rsa]` extras.** MySQL 8.x uses `caching_sha2_password` by default, which requires `cryptography`. The `[rsa]` extras pull it in. Don't strip the brackets.
 - **Tier filter is aggressive.** Most low-rated bullet games are filtered before Stockfish even runs. Expect ~10–20% of input games to reach analysis, and ~3–5% of those to yield puzzles.
 - **`--file` bypasses S3.** Useful for replay testing on Lichess monthly dumps. The upstream generator natively reads `.zst`, so no decompression needed.

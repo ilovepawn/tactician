@@ -45,18 +45,14 @@ The pattern recognition logic is vendored from [Lichess's puzzle generator](http
 
 ### Prerequisites
 
-- Python 3.13+
 - Docker & Docker Compose
-- Stockfish (`brew install stockfish` on macOS)
-- [uv](https://docs.astral.sh/uv/) package manager
+
+The batch worker image bundles Python 3.13, all dependencies, and Stockfish 18 (compiled from source for reproducibility), so no host-side Python or Stockfish install is required.
 
 ### Run
 
 ```bash
-# Install dependencies
-uv sync
-
-# Copy and adjust environment config
+# Copy environment config (only needed for host-mode runs; compose ignores .env)
 cp .env.example .env
 
 # Start MySQL + MinIO
@@ -65,10 +61,27 @@ docker compose up -d
 # Apply database schema
 docker exec -i tactician-db-1 mysql -u tactician -ptactician tactician < migrations/001_init.sql
 
-# Run a daily batch (production mode, pulls from S3)
-uv run python -m tactician.batch --date 2026-04-26
+# Build the batch worker image (one-time / when Dockerfile or deps change)
+docker compose build batch
 
-# Or run on a local PGN file (testing)
+# Daily batch (production mode, pulls from S3)
+docker compose run --rm batch --date 2026-04-26
+
+# Ad-hoc: run on a local PGN file. Mount its host directory via LICHESS_DUMP_DIR.
+LICHESS_DUMP_DIR=/Volumes/bobo-01 \
+  docker compose run --rm batch \
+    --file /mnt/lichess/lichess_db_standard_rated_2026-03_eval.pgn.zst \
+    --max-games 200
+```
+
+> The `batch` service uses a compose `profiles: [batch]` flag so it does **not** auto-start with `docker compose up -d`. Invoke it explicitly with `docker compose run --rm batch ...`.
+
+#### Host-mode (developer convenience)
+
+If you'd rather iterate without rebuilding the image, you can still run the batch on the host. You'll need Python 3.13, [uv](https://docs.astral.sh/uv/), and Stockfish (`brew install stockfish`):
+
+```bash
+uv sync
 uv run python -m tactician.batch --file games.pgn.zst --max-games 100
 ```
 
@@ -77,7 +90,7 @@ uv run python -m tactician.batch --file games.pgn.zst --max-games 100
 ## Batch CLI
 
 ```bash
-uv run python -m tactician.batch [options]
+docker compose run --rm batch [options]
 ```
 
 | Option | Description |
@@ -124,6 +137,7 @@ tactician/
 │   ├── config.py      # Environment configuration
 │   └── adapters/      # MySQL writer, S3 reader, tagger I/O
 ├── migrations/        # Plain SQL migrations
+├── Dockerfile         # Batch worker image (Python + Stockfish 18)
 ├── docker-compose.yml
 └── pyproject.toml
 ```
