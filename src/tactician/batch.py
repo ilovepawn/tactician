@@ -75,6 +75,8 @@ def _truncate_to_games(input_path: Path, max_games: int) -> Path:
 
 def run_generator(pgn_path: Path, cfg) -> None:
     """Run upstream generator with our MySQL server plugged in."""
+    import time
+
     _use_upstream(GENERATOR_DIR)
     import generator as upstream_generator  # type: ignore
 
@@ -85,6 +87,20 @@ def run_generator(pgn_path: Path, cfg) -> None:
 
     # Monkey-patch the upstream Server class to use our MySQL adapter.
     upstream_generator.Server = _server_factory  # type: ignore
+
+    # Wrap analyze_game to log per-game timing.
+    original_analyze = upstream_generator.Generator.analyze_game
+
+    def _timed_analyze_game(self, game, tier):
+        start = time.time()
+        result = original_analyze(self, game, tier)
+        elapsed = time.time() - start
+        site = game.headers.get("Site", "?")[20:]
+        outcome = "puzzle" if result is not None else "no-puzzle"
+        logger.info(f"game {site} {outcome} {elapsed:.2f}s tier={tier}")
+        return result
+
+    upstream_generator.Generator.analyze_game = _timed_analyze_game  # type: ignore
 
     sys.argv = [
         "generator",
@@ -100,13 +116,18 @@ def run_generator(pgn_path: Path, cfg) -> None:
 
 def run_tagger(cfg) -> None:
     """Run upstream tagger logic against our MySQL puzzles."""
+    import time
+
     _use_upstream(TAGGER_DIR)
     import cook  # type: ignore  (from upstream/tagger)
 
     count = 0
     for puzzle in mysql_tagger_io.iter_untagged_puzzles(logger, cfg.mysql):
+        start = time.time()
         themes = cook.cook(puzzle)
         mysql_tagger_io.insert_themes(logger, cfg.mysql, int(puzzle.id), themes)
+        elapsed = time.time() - start
+        logger.info(f"tagged puzzle {puzzle.id} in {elapsed:.2f}s ({len(themes)} themes)")
         count += 1
     logger.info(f"tagged {count} puzzles")
 
