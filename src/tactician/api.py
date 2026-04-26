@@ -65,7 +65,7 @@ def get_themes(conn: Connection = Depends(get_db)) -> list[Theme]:
 def get_random_puzzle(
     theme: str | None = None, conn: Connection = Depends(get_db)
 ) -> Puzzle:
-    row = mysql_reader.random_puzzle(conn, theme)
+    row = mysql_reader.random_puzzle(conn, theme or None)
     if row is None:
         raise HTTPException(status_code=404, detail="no puzzle matches")
     return Puzzle(**row)
