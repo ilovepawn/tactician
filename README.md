@@ -1,6 +1,6 @@
-# tactician-generator
+# tactician
 
-Chess puzzle generator service. Daily batch worker that processes annotated PGN games and produces tactical puzzles for the platform's puzzle library.
+Chess puzzle service for the ilovepawn platform. Generates tactical puzzles from platform games (daily batch) and serves them to users via API.
 
 ## Attribution
 

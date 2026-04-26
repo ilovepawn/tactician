@@ -1,7 +1,7 @@
 [project]
-name = "tactician-generator"
+name = "tactician"
 version = "0.1.0"
-description = "Chess puzzle generator service. Vendored from lichess-puzzler (AGPL-3.0)."
+description = "Chess puzzle service. Vendors lichess-puzzler (AGPL-3.0) for generation and serves puzzles via API."
 readme = "README.md"
 requires-python = ">=3.13"
 license = { text = "AGPL-3.0-or-later" }

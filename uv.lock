@@ -385,7 +385,7 @@ wheels = [
 ]
 
 [[package]]
-name = "tactician-generator"
+name = "tactician"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
