@@ -9,10 +9,11 @@ from pymysql.cursors import DictCursor
 def list_themes(conn: Connection) -> list[dict]:
     with conn.cursor(DictCursor) as cur:
         cur.execute(
-            "SELECT theme AS name, COUNT(*) AS count "
-            "FROM puzzle_theme "
-            "GROUP BY theme "
-            "ORDER BY count DESC, theme ASC"
+            "SELECT t.theme AS name, COUNT(*) AS count "
+            "FROM puzzle_theme t "
+            "JOIN puzzle p ON p.id = t.puzzle_id AND p.is_hidden = 0 "
+            "GROUP BY t.theme "
+            "ORDER BY count DESC, t.theme ASC"
         )
         return list(cur.fetchall())
 
