@@ -1,0 +1,40 @@
+# VCS / IDE
+.git/
+.github/
+.vscode/
+.idea/
+.claude/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Local secrets — container gets env from compose
+.env
+.env.local
+
+# Docs / build artifacts
+# (README.md is referenced by pyproject.toml — keep it.)
+README.ko.md
+CLAUDE.md
+Dockerfile
+docker-compose.yml
+.dockerignore
+.gitignore
+
+# Large local data (not needed at build time)
+*.pgn
+*.pgn.zst
+*.csv
+*.csv.zst
+/data/
+/tmp/
+
+# OS
+.DS_Store
+Thumbs.db

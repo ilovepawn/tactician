@@ -37,6 +37,34 @@ services:
       timeout: 3s
       retries: 10
 
+  # One-shot batch worker. Not started by `docker compose up` — invoke with
+  #   docker compose run --rm batch --date YYYY-MM-DD
+  #   docker compose run --rm batch --file /mnt/lichess/<dump>.pgn.zst --max-games 200
+  # Mount any host directory holding ad-hoc PGN dumps via LICHESS_DUMP_DIR
+  # (defaults to ./data so missing dirs don't fail compose parse).
+  batch:
+    build: .
+    profiles: ["batch"]
+    depends_on:
+      db:
+        condition: service_healthy
+      s3:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: db
+      MYSQL_PORT: "3306"
+      MYSQL_USER: tactician
+      MYSQL_PASSWORD: tactician
+      MYSQL_DATABASE: tactician
+      S3_ENDPOINT_URL: http://s3:9000
+      S3_ACCESS_KEY: admin
+      S3_SECRET_KEY: changeme123
+      S3_BUCKET_GAMES: games
+      STOCKFISH_PATH: /usr/local/bin/stockfish
+      STOCKFISH_THREADS: "4"
+    volumes:
+      - ${LICHESS_DUMP_DIR:-./data}:/mnt/lichess:ro
+
 volumes:
   mysql_data:
   minio_data:
