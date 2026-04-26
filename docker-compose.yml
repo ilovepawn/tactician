@@ -44,6 +44,7 @@ services:
   # (defaults to ./data so missing dirs don't fail compose parse).
   batch:
     build: .
+    image: tactician:latest
     profiles: ["batch"]
     depends_on:
       db:
@@ -64,6 +65,32 @@ services:
       STOCKFISH_THREADS: "4"
     volumes:
       - ${LICHESS_DUMP_DIR:-./data}:/mnt/lichess:ro
+
+  # Long-running HTTP API. Same image as batch — different command.
+  api:
+    build: .
+    image: tactician:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: db
+      MYSQL_PORT: "3306"
+      MYSQL_USER: tactician
+      MYSQL_PASSWORD: tactician
+      MYSQL_DATABASE: tactician
+      # api doesn't need S3/Stockfish, but config.load_config() requires
+      # all keys to be present. Stub them out.
+      S3_ENDPOINT_URL: http://s3:9000
+      S3_ACCESS_KEY: admin
+      S3_SECRET_KEY: changeme123
+      S3_BUCKET_GAMES: games
+      STOCKFISH_PATH: /usr/local/bin/stockfish
+      STOCKFISH_THREADS: "1"
+    ports:
+      - "8000:8000"
+    entrypoint: ["uv", "run", "--no-sync", "uvicorn", "tactician.api:app", "--host", "0.0.0.0", "--port", "8000"]
 
 volumes:
   mysql_data:
