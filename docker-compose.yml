@@ -19,7 +19,7 @@ services:
       timeout: 5s
       retries: 10
 
-  minio:
+  s3:
     image: minio/minio:latest
     restart: unless-stopped
     ports:
