@@ -30,3 +30,9 @@ Thumbs.db
 /data/
 /tmp/
 *.bak
+
+# Lichess data dumps (testing)
+*.pgn
+*.pgn.zst
+*.csv
+*.csv.zst
