@@ -23,10 +23,13 @@ from pathlib import Path
 
 import zstandard
 
-# Make upstream packages importable.
+# Upstream package paths. They are NOT added to sys.path at import time because
+# both subdirs contain a top-level `model.py` and would shadow each other.
+# `_use_upstream()` swaps the active path per stage (generator vs tagger).
 ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(ROOT / "upstream" / "generator"))
-sys.path.insert(0, str(ROOT / "upstream" / "tagger"))
+GENERATOR_DIR = ROOT / "upstream" / "generator"
+TAGGER_DIR = ROOT / "upstream" / "tagger"
+_UPSTREAM_MODULE_NAMES = ("model", "util", "server", "generator", "tb", "cook", "zugzwang")
 
 from tactician.adapters import mysql_tagger_io  # noqa: E402
 from tactician.adapters.mysql_writer import MySQLServer  # noqa: E402
@@ -34,6 +37,16 @@ from tactician.adapters.s3_reader import download_pgn_for_date  # noqa: E402
 from tactician.config import load_config  # noqa: E402
 
 logger = logging.getLogger("tactician.batch")
+
+
+def _use_upstream(target_dir: Path) -> None:
+    """Switch sys.path to point at one upstream subdir and clear cached modules."""
+    for d in (str(GENERATOR_DIR), str(TAGGER_DIR)):
+        while d in sys.path:
+            sys.path.remove(d)
+    sys.path.insert(0, str(target_dir))
+    for name in _UPSTREAM_MODULE_NAMES:
+        sys.modules.pop(name, None)
 
 
 def _truncate_to_games(input_path: Path, max_games: int) -> Path:
@@ -62,6 +75,7 @@ def _truncate_to_games(input_path: Path, max_games: int) -> Path:
 
 def run_generator(pgn_path: Path, cfg) -> None:
     """Run upstream generator with our MySQL server plugged in."""
+    _use_upstream(GENERATOR_DIR)
     import generator as upstream_generator  # type: ignore
 
     version = upstream_generator.version
@@ -86,6 +100,7 @@ def run_generator(pgn_path: Path, cfg) -> None:
 
 def run_tagger(cfg) -> None:
     """Run upstream tagger logic against our MySQL puzzles."""
+    _use_upstream(TAGGER_DIR)
     import cook  # type: ignore  (from upstream/tagger)
 
     count = 0
