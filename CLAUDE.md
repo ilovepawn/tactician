@@ -83,6 +83,6 @@ docker exec tactician-db-1 mysql -u tactician -ptactician tactician \
 - **Tier filter is aggressive.** Most low-rated bullet games are filtered before Stockfish even runs. Expect ~10–20% of input games to reach analysis, and ~3–5% of those to yield puzzles.
 - **`--file` bypasses S3.** Useful for replay testing on Lichess monthly dumps. The upstream generator natively reads `.zst`, so no decompression needed.
 - **`--max-games N`.** Truncates the input to the first N games via PGN-level scan (counts `[Event ` headers). Implemented in `_truncate_to_games`.
-- **Commit messages.** Single-line conventional commits (`feat:`, `fix:`, `chore:`, `refactor:`, `docs:`). Body only when the *why* is non-obvious. English. `Co-Authored-By` footer for Claude commits.
+- **Commit messages.** Single-line conventional commits (`feat:`, `fix:`, `chore:`, `refactor:`, `docs:`). No body — ever. Pack the why into the subject or omit it. English. `Co-Authored-By` footer for Claude commits.
 - **Branch workflow.** Work on `dev`, merge to `main` only at deployment.
 - **License.** AGPL-3.0-or-later (forced by lichess-puzzler vendoring + python-chess GPL dependency).
