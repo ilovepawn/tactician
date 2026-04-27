@@ -20,7 +20,7 @@ Every puzzle is auto-discovered by Stockfish from real games played on the platf
 ## How It Works
 
 1. Users finish their games on the platform
-2. Annotated PGNs (with Stockfish `%eval` markers) flow into the service's S3 bucket
+2. Annotated PGNs (with Stockfish `%eval` markers) flow into the platform's shared S3 bucket (produced by a separate analysis service; tactician is a consumer)
 3. A nightly batch scans games for blunders and forced wins, extracting puzzle candidates
 4. Each candidate is auto-tagged (`fork`, `pin`, `mateIn3`, `zugzwang`, ...) using ~60 themed pattern detectors
 5. Tagged puzzles land in MySQL

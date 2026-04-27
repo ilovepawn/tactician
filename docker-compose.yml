@@ -19,6 +19,12 @@ services:
       timeout: 5s
       retries: 10
 
+  # MinIO is a platform-level shared resource, not tactician's own.
+  # It currently runs inside this compose stack for dev convenience, but
+  # the producer (a separate analysis service, not yet split out) owns the
+  # bucket — tactician is just a consumer. When the analysis service
+  # repo lands, this service definition will move to a platform-infra
+  # (or analysis) repo and tactician will join its network externally.
   s3:
     image: minio/minio:latest
     restart: unless-stopped
