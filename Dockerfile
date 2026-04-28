@@ -34,4 +34,7 @@ COPY src/ src/
 COPY upstream/ upstream/
 RUN uv sync --frozen --no-dev
 
+RUN useradd --create-home --shell /bin/bash app
+USER app
+
 ENTRYPOINT ["uv", "run", "--no-sync", "python", "-m", "tactician.batch"]
