@@ -57,9 +57,6 @@
 tactician은 플랫폼 통합 dev 스택 안에서 실행됩니다. [`infra`](https://github.com/ilovepawn/infra) 레포를 `tactician/`의 형제 디렉터리로 클론한 뒤, `infra/compose/`에서 스택을 띄우세요 — 자세한 내용은 [infra/compose/README.md](https://github.com/ilovepawn/infra/blob/main/compose/README.md) 참고.
 
 ```bash
-# 환경 설정 파일 복사 (호스트 모드 실행 때만 필요. compose는 .env 무시)
-cp .env.example .env
-
 # 플랫폼 스택 기동 (MySQL ×3, MinIO, RabbitMQ, ..., tactician api)
 cd ../infra/compose && docker compose up -d
 
@@ -82,15 +79,6 @@ LICHESS_DUMP_DIR=/Volumes/bobo-01 \
 ```
 
 > `tactician-batch`는 infra compose에서 `profiles: [batch]`로 묶여 있어 `up -d`로 자동 실행되지 않습니다. 항상 `docker compose run --rm tactician-batch ...` 형태로 호출하세요. `tactician` (api) 서비스는 profile 없음 — 기본 `up`에 함께 시작됩니다.
-
-#### 호스트 모드 (개발 편의용)
-
-이미지 리빌드 없이 빠르게 반복하고 싶다면 호스트에서 직접 실행할 수도 있습니다. Python 3.13, [uv](https://docs.astral.sh/uv/), Stockfish (`brew install stockfish`)가 필요합니다:
-
-```bash
-uv sync
-uv run python -m tactician.batch --file games.pgn.zst --max-games 100
-```
 
 ---
 

@@ -41,10 +41,6 @@ curl http://localhost:8000/themes
 curl http://localhost:8000/puzzles/1
 curl 'http://localhost:8000/puzzles/random?theme=fork'
 
-# Host-mode batch (developer convenience — needs uv + host Stockfish, infra stack up)
-uv sync
-uv run python -m tactician.batch --file path/to/games.pgn.zst --max-games 100
-
 # Inspect generated puzzles
 docker exec ilovepawn-tactician-mysql mysql -u mwzz6 -p1234 tactician \
   -e "SELECT id, game_id, ply, cp, difficulty FROM puzzle ORDER BY id DESC LIMIT 10;"
@@ -75,7 +71,7 @@ docker exec ilovepawn-tactician-mysql mysql -u mwzz6 -p1234 tactician \
 - **Magic eval values.** Upstream signals mate puzzles via `cp = 999999998` / `999999999` instead of NULL. We persist these as-is (not NULLs) to keep upstream behavior intact. Aggregate queries (`AVG(cp)` etc.) need to filter `cp < 999999000`.
 - **MySQL collation.** The `fen` column uses `utf8mb4_bin` because FEN is case-sensitive (`K` = white king, `k` = black king). The default `utf8mb4_0900_ai_ci` would silently treat them as equal.
 - **MinIO is platform-level, not tactician's.** MinIO is defined in the `infra` repo's unified compose and shared with sibling services (the producer is a separate analysis service — `deep-thought`). Tactician is a pure consumer. Don't expand tactician's S3 surface area or treat the bucket layout as something we own.
-- **Stockfish.** Generator invokes Stockfish via UCI subprocess (`chess.engine.SimpleEngine.popen_uci`). Path is configured via `STOCKFISH_PATH` env var. The batch container builds Stockfish 18 from source (Dockerfile stage 1) so analysis is reproducible across machines; host-mode runs use whatever `STOCKFISH_PATH` points at and should match (currently Stockfish 18).
+- **Stockfish.** Generator invokes Stockfish via UCI subprocess (`chess.engine.SimpleEngine.popen_uci`). Path is configured via `STOCKFISH_PATH` env var. The batch container builds Stockfish 18 from source (Dockerfile stage 1) so analysis is reproducible across machines.
 - **Batch container.** `cd ../infra/compose && docker compose run --rm tactician-batch ...` is the canonical entrypoint. Service is `profiles: [batch]`-gated in the infra compose so it does not auto-start. Infra passes container hostnames (`MYSQL_HOST=tactician-mysql`, `S3_ENDPOINT_URL=http://minio:9000`) and the bundled Stockfish path as env vars, overriding `.env`. Mount ad-hoc PGN dumps via `LICHESS_DUMP_DIR=<host-dir> docker compose -f ../infra/compose/docker-compose.yml run --rm tactician-batch ...` — the dir lands at `/mnt/lichess` read-only inside the container.
 - **API container.** Long-running, port 8000, no profile (auto-starts with infra `docker compose up -d`). Reuses the batch image; entrypoint is `uvicorn tactician.api:app --host 0.0.0.0 --port 8000`. Same env vars as batch (config requires all keys; S3/Stockfish are stubbed for the api).
 - **API stack choices.** FastAPI + uvicorn + Pydantic. DB access is sync `pymysql` via `DBUtils.PooledDB` (init in lifespan, dependency-injected per request). No ORM (raw SQL, mirrors the "plain SQL migrations" decision). No async DB driver — sync routes are fine for MVP load and easier to debug; switch to `asyncmy`/`aiomysql` only if measurement shows it's needed.

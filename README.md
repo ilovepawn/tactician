@@ -57,9 +57,6 @@ The batch worker image bundles Python 3.13, all dependencies, and Stockfish 18 (
 Tactician runs inside the platform's unified dev stack. Clone the [`infra`](https://github.com/ilovepawn/infra) repo as a sibling directory of `tactician/`, then drive the stack from `infra/compose/` — see [infra/compose/README.md](https://github.com/ilovepawn/infra/blob/main/compose/README.md).
 
 ```bash
-# Copy environment config (only needed for host-mode runs; compose ignores .env)
-cp .env.example .env
-
 # Bring up the platform stack (MySQL ×3, MinIO, RabbitMQ, ..., tactician api)
 cd ../infra/compose && docker compose up -d
 
@@ -82,15 +79,6 @@ LICHESS_DUMP_DIR=/Volumes/bobo-01 \
 ```
 
 > `tactician-batch` is `profiles: [batch]`-gated in the infra compose so it does **not** auto-start with `up -d`. Invoke it explicitly via `docker compose run --rm tactician-batch ...`. The `tactician` (api) service has no profile and starts with the default `up`.
-
-#### Host-mode (developer convenience)
-
-If you'd rather iterate without rebuilding the image, you can still run the batch on the host. You'll need Python 3.13, [uv](https://docs.astral.sh/uv/), and Stockfish (`brew install stockfish`):
-
-```bash
-uv sync
-uv run python -m tactician.batch --file games.pgn.zst --max-games 100
-```
 
 ---
 
