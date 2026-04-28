@@ -23,7 +23,6 @@ __pycache__/
 README.ko.md
 CLAUDE.md
 Dockerfile
-docker-compose.yml
 .dockerignore
 .gitignore
 

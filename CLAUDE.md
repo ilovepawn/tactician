@@ -10,24 +10,28 @@ The puzzle detection and theme classification logic is vendored from [Lichess's 
 
 ## Commands
 
-```bash
-# Start MySQL + MinIO + API (api auto-starts; batch is profile-gated)
-docker compose up -d
+All container workflows are driven from the sibling `infra` repo's unified compose
+(`../infra/compose/docker-compose.yml`). Tactician no longer ships its own compose file.
+See `../infra/compose/README.md` for the full stack layout.
 
-# Apply schema (apply each migration file in order — idempotent on fresh DB)
+```bash
+# Bring up the platform stack (MySQL ×3, MinIO, RabbitMQ, ..., tactician api)
+cd ../infra/compose && docker compose up -d
+
+# Apply schema (run from tactician/ — migrations live here)
 for f in migrations/*.sql; do
-  docker exec -i tactician-db-1 mysql -u tactician -ptactician tactician < "$f"
+  docker exec -i ilovepawn-tactician-mysql mysql -u mwzz6 -p1234 tactician < "$f"
 done
 
-# Build the worker / api image (Python + Stockfish 18 bundled, shared by both services)
-docker compose build
+# Rebuild the tactician image after Dockerfile / deps change
+cd ../infra/compose && docker compose build tactician tactician-batch
 
 # Daily batch (production mode — pulls from S3)
-docker compose run --rm batch --date 2026-04-26
+cd ../infra/compose && docker compose run --rm tactician-batch --date 2026-04-26
 
 # Ad-hoc: run on a local PGN file mounted from the host via LICHESS_DUMP_DIR
 LICHESS_DUMP_DIR=/Volumes/bobo-01 \
-  docker compose run --rm batch \
+  docker compose -f ../infra/compose/docker-compose.yml run --rm tactician-batch \
     --file /mnt/lichess/lichess_db_standard_rated_2026-03_eval.pgn.zst \
     --max-games 200
 
@@ -37,12 +41,12 @@ curl http://localhost:8000/themes
 curl http://localhost:8000/puzzles/1
 curl 'http://localhost:8000/puzzles/random?theme=fork'
 
-# Host-mode batch (developer convenience — needs uv + host Stockfish)
+# Host-mode batch (developer convenience — needs uv + host Stockfish, infra stack up)
 uv sync
 uv run python -m tactician.batch --file path/to/games.pgn.zst --max-games 100
 
 # Inspect generated puzzles
-docker exec tactician-db-1 mysql -u tactician -ptactician tactician \
+docker exec ilovepawn-tactician-mysql mysql -u mwzz6 -p1234 tactician \
   -e "SELECT id, game_id, ply, cp, difficulty FROM puzzle ORDER BY id DESC LIMIT 10;"
 ```
 
@@ -70,10 +74,10 @@ docker exec tactician-db-1 mysql -u tactician -ptactician tactician \
 - **Module collision workaround.** Both `upstream/generator/model.py` and `upstream/tagger/model.py` define different `Puzzle` dataclasses. They cannot coexist on `sys.path`. `batch.py:_use_upstream()` swaps the active path per stage (generator vs tagger) and clears cached modules in between.
 - **Magic eval values.** Upstream signals mate puzzles via `cp = 999999998` / `999999999` instead of NULL. We persist these as-is (not NULLs) to keep upstream behavior intact. Aggregate queries (`AVG(cp)` etc.) need to filter `cp < 999999000`.
 - **MySQL collation.** The `fen` column uses `utf8mb4_bin` because FEN is case-sensitive (`K` = white king, `k` = black king). The default `utf8mb4_0900_ai_ci` would silently treat them as equal.
-- **MinIO is platform-level, not tactician's.** MinIO currently runs inside this compose stack for dev convenience, but conceptually it's a shared platform resource. The producer is a separate analysis service (different repo, not yet built); tactician is a consumer. When the analysis service is split out, the MinIO definition moves to a `platform-infra` (or analysis) repo and tactician joins its network externally. Don't expand tactician's S3 surface area or treat the bucket layout as something we own.
+- **MinIO is platform-level, not tactician's.** MinIO is defined in the `infra` repo's unified compose and shared with sibling services (the producer is a separate analysis service — `deep-thought`). Tactician is a pure consumer. Don't expand tactician's S3 surface area or treat the bucket layout as something we own.
 - **Stockfish.** Generator invokes Stockfish via UCI subprocess (`chess.engine.SimpleEngine.popen_uci`). Path is configured via `STOCKFISH_PATH` env var. The batch container builds Stockfish 18 from source (Dockerfile stage 1) so analysis is reproducible across machines; host-mode runs use whatever `STOCKFISH_PATH` points at and should match (currently Stockfish 18).
-- **Batch container.** `docker compose run --rm batch ...` is the canonical entrypoint. The service uses `profiles: [batch]` so it does not auto-start with `docker compose up -d`. Compose passes container hostnames (`MYSQL_HOST=db`, `S3_ENDPOINT_URL=http://s3:9000`) and the bundled Stockfish path as env vars, overriding `.env`. Mount ad-hoc PGN dumps via `LICHESS_DUMP_DIR=<host-dir> docker compose run ...` — the dir lands at `/mnt/lichess` read-only inside the container.
-- **API container.** Long-running, port 8000, no profile (auto-starts with `docker compose up -d`). Reuses the batch image; entrypoint is `uvicorn tactician.api:app --host 0.0.0.0 --port 8000`. Same env vars as batch (config requires all keys; S3/Stockfish are stubbed for the api).
+- **Batch container.** `cd ../infra/compose && docker compose run --rm tactician-batch ...` is the canonical entrypoint. Service is `profiles: [batch]`-gated in the infra compose so it does not auto-start. Infra passes container hostnames (`MYSQL_HOST=tactician-mysql`, `S3_ENDPOINT_URL=http://minio:9000`) and the bundled Stockfish path as env vars, overriding `.env`. Mount ad-hoc PGN dumps via `LICHESS_DUMP_DIR=<host-dir> docker compose -f ../infra/compose/docker-compose.yml run --rm tactician-batch ...` — the dir lands at `/mnt/lichess` read-only inside the container.
+- **API container.** Long-running, port 8000, no profile (auto-starts with infra `docker compose up -d`). Reuses the batch image; entrypoint is `uvicorn tactician.api:app --host 0.0.0.0 --port 8000`. Same env vars as batch (config requires all keys; S3/Stockfish are stubbed for the api).
 - **API stack choices.** FastAPI + uvicorn + Pydantic. DB access is sync `pymysql` via `DBUtils.PooledDB` (init in lifespan, dependency-injected per request). No ORM (raw SQL, mirrors the "plain SQL migrations" decision). No async DB driver — sync routes are fine for MVP load and easier to debug; switch to `asyncmy`/`aiomysql` only if measurement shows it's needed.
 - **Route order matters.** `/puzzles/random` MUST be declared before `/puzzles/{puzzle_id}` in `api.py`. Otherwise FastAPI matches "random" against `{puzzle_id}` and returns 422.
 - **camelCase JSON via alias generator.** `Puzzle` Pydantic model uses `model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)` so Python snake_case fields (`game_id`) serialize as camelCase (`gameId`). DB / SQL / adapter layers stay snake_case throughout — conversion happens once at the response boundary.

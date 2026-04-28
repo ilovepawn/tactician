@@ -54,35 +54,34 @@ The batch worker image bundles Python 3.13, all dependencies, and Stockfish 18 (
 
 ### Run
 
+Tactician runs inside the platform's unified dev stack. Clone the [`infra`](https://github.com/ilovepawn/infra) repo as a sibling directory of `tactician/`, then drive the stack from `infra/compose/` — see [infra/compose/README.md](https://github.com/ilovepawn/infra/blob/main/compose/README.md).
+
 ```bash
 # Copy environment config (only needed for host-mode runs; compose ignores .env)
 cp .env.example .env
 
-# Start MySQL + MinIO
-docker compose up -d
+# Bring up the platform stack (MySQL ×3, MinIO, RabbitMQ, ..., tactician api)
+cd ../infra/compose && docker compose up -d
 
-# Apply database schema (apply each migration file in order)
+# Apply database schema (run from tactician/ — migrations live here)
 for f in migrations/*.sql; do
-  docker exec -i tactician-db-1 mysql -u tactician -ptactician tactician < "$f"
+  docker exec -i ilovepawn-tactician-mysql mysql -u mwzz6 -p1234 tactician < "$f"
 done
 
-# Build the worker / API image (one-time / when Dockerfile or deps change)
-docker compose build
-
-# Start the HTTP API (long-running, port 8000)
-docker compose up -d api
+# Rebuild after Dockerfile / deps change
+cd ../infra/compose && docker compose build tactician tactician-batch
 
 # Daily batch (production mode, pulls from S3)
-docker compose run --rm batch --date 2026-04-26
+cd ../infra/compose && docker compose run --rm tactician-batch --date 2026-04-26
 
 # Ad-hoc: run on a local PGN file. Mount its host directory via LICHESS_DUMP_DIR.
 LICHESS_DUMP_DIR=/Volumes/bobo-01 \
-  docker compose run --rm batch \
+  docker compose -f ../infra/compose/docker-compose.yml run --rm tactician-batch \
     --file /mnt/lichess/lichess_db_standard_rated_2026-03_eval.pgn.zst \
     --max-games 200
 ```
 
-> The `batch` service uses a compose `profiles: [batch]` flag so it does **not** auto-start with `docker compose up -d`. Invoke it explicitly with `docker compose run --rm batch ...`. The `api` service has no profile and starts with the default `up`.
+> `tactician-batch` is `profiles: [batch]`-gated in the infra compose so it does **not** auto-start with `up -d`. Invoke it explicitly via `docker compose run --rm tactician-batch ...`. The `tactician` (api) service has no profile and starts with the default `up`.
 
 #### Host-mode (developer convenience)
 
@@ -98,7 +97,7 @@ uv run python -m tactician.batch --file games.pgn.zst --max-games 100
 ## Batch CLI
 
 ```bash
-docker compose run --rm batch [options]
+cd ../infra/compose && docker compose run --rm tactician-batch [options]
 ```
 
 | Option | Description |
@@ -181,7 +180,6 @@ tactician/
 │   └── adapters/      # mysql_writer (batch), mysql_reader (api), s3_reader, mysql_tagger_io
 ├── migrations/        # Plain SQL migrations (apply in filename order)
 ├── Dockerfile         # Shared image for batch + api (Python + Stockfish 18)
-├── docker-compose.yml
 └── pyproject.toml
 ```
 
