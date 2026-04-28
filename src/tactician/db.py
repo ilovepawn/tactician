@@ -8,7 +8,9 @@ from dbutils.pooled_db import PooledDB
 from pymysql.connections import Connection
 
 from tactician.config import MySQLConfig
+from tactician.metrics import DB_POOL_IN_USE, DB_POOL_MAX
 
+_MAX_CONNECTIONS = 20
 _pool: PooledDB | None = None
 
 
@@ -18,7 +20,7 @@ def init_pool(cfg: MySQLConfig) -> None:
         creator=pymysql,
         mincached=2,
         maxcached=5,
-        maxconnections=20,
+        maxconnections=_MAX_CONNECTIONS,
         blocking=True,
         host=cfg.host,
         port=cfg.port,
@@ -28,6 +30,7 @@ def init_pool(cfg: MySQLConfig) -> None:
         autocommit=True,
         charset="utf8mb4",
     )
+    DB_POOL_MAX.set(_MAX_CONNECTIONS)
 
 
 def get_db() -> Generator[Connection, None, None]:
@@ -35,7 +38,9 @@ def get_db() -> Generator[Connection, None, None]:
     if _pool is None:
         raise RuntimeError("init_pool() must be called before get_db()")
     conn = _pool.connection()
+    DB_POOL_IN_USE.inc()
     try:
         yield conn
     finally:
         conn.close()
+        DB_POOL_IN_USE.dec()

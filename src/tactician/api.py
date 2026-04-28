@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 from pymysql.connections import Connection
@@ -14,6 +15,11 @@ from pymysql.connections import Connection
 from tactician.adapters import mysql_reader
 from tactician.config import load_config
 from tactician.db import get_db, init_pool
+from tactician.metrics import (
+    PUZZLE_NOT_FOUND,
+    PUZZLES_SERVED,
+    THEMES_QUERIED,
+)
 
 
 @asynccontextmanager
@@ -31,6 +37,10 @@ app.add_middleware(
     allow_methods=["GET"],
     allow_headers=["*"],
 )
+
+Instrumentator(
+    excluded_handlers=["/metrics", "/health"],
+).instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
 
 class Theme(BaseModel):
@@ -58,6 +68,7 @@ async def health() -> dict[str, str]:
 
 @app.get("/themes", response_model=list[Theme])
 def get_themes(conn: Connection = Depends(get_db)) -> list[Theme]:
+    THEMES_QUERIED.inc()
     return [Theme(**row) for row in mysql_reader.list_themes(conn)]
 
 
@@ -67,7 +78,9 @@ def get_random_puzzle(
 ) -> Puzzle:
     row = mysql_reader.random_puzzle(conn, theme or None)
     if row is None:
+        PUZZLE_NOT_FOUND.labels(endpoint="random").inc()
         raise HTTPException(status_code=404, detail="no puzzle matches")
+    PUZZLES_SERVED.labels(endpoint="random", theme=theme or "all").inc()
     return Puzzle(**row)
 
 
@@ -75,5 +88,7 @@ def get_random_puzzle(
 def get_puzzle(puzzle_id: int, conn: Connection = Depends(get_db)) -> Puzzle:
     row = mysql_reader.get_puzzle(conn, puzzle_id)
     if row is None:
+        PUZZLE_NOT_FOUND.labels(endpoint="id").inc()
         raise HTTPException(status_code=404, detail="puzzle not found")
+    PUZZLES_SERVED.labels(endpoint="id", theme="-").inc()
     return Puzzle(**row)
