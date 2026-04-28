@@ -34,6 +34,7 @@ class Config:
     mysql: MySQLConfig
     s3: S3Config
     stockfish: StockfishConfig
+    pushgateway_url: str | None = None
 
 
 def load_config() -> Config:
@@ -55,4 +56,5 @@ def load_config() -> Config:
             path=os.environ["STOCKFISH_PATH"],
             threads=int(os.environ["STOCKFISH_THREADS"]),
         ),
+        pushgateway_url=os.environ.get("PUSHGATEWAY_URL") or None,
     )

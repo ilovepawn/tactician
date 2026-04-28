@@ -31,6 +31,7 @@ GENERATOR_DIR = ROOT / "upstream" / "generator"
 TAGGER_DIR = ROOT / "upstream" / "tagger"
 _UPSTREAM_MODULE_NAMES = ("model", "util", "server", "generator", "tb", "cook", "zugzwang")
 
+from tactician import batch_metrics  # noqa: E402
 from tactician.adapters import mysql_tagger_io  # noqa: E402
 from tactician.adapters.mysql_writer import MySQLServer  # noqa: E402
 from tactician.adapters.s3_reader import download_pgn_for_date  # noqa: E402
@@ -95,6 +96,10 @@ def run_generator(pgn_path: Path, cfg) -> None:
         start = time.time()
         result = original_analyze(self, game, tier)
         elapsed = time.time() - start
+        batch_metrics.GAMES_PROCESSED.inc()
+        batch_metrics.ANALYZE_GAME_SECONDS.inc(elapsed)
+        if result is not None:
+            batch_metrics.PUZZLES_CREATED.inc()
         site = game.headers.get("Site", "?")[20:]
         outcome = "puzzle" if result is not None else "no-puzzle"
         logger.info(f"game {site} {outcome} {elapsed:.2f}s tier={tier}")
@@ -127,6 +132,9 @@ def run_tagger(cfg) -> None:
         themes = cook.cook(puzzle)
         mysql_tagger_io.insert_themes(logger, cfg.mysql, int(puzzle.id), themes)
         elapsed = time.time() - start
+        batch_metrics.PUZZLES_TAGGED.inc()
+        batch_metrics.THEMES_EMITTED.inc(len(themes))
+        batch_metrics.TAGGER_SECONDS.inc(elapsed)
         logger.info(f"tagged puzzle {puzzle.id} in {elapsed:.2f}s ({len(themes)} themes)")
         count += 1
     logger.info(f"tagged {count} puzzles")
@@ -155,6 +163,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    import time
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
@@ -164,6 +174,8 @@ def main() -> None:
     cfg = load_config()
 
     cleanup_paths: list[Path] = []
+    success = False
+    run_start = time.time()
     try:
         if args.file:
             pgn_path = Path(args.file)
@@ -182,16 +194,28 @@ def main() -> None:
             cleanup_paths.append(pgn_path)
             if pgn_path.stat().st_size == 0:
                 logger.warning(f"no games found for {target}, skipping")
+                success = True
                 return
 
         if args.max_games:
             pgn_path = _truncate_to_games(pgn_path, args.max_games)
             cleanup_paths.append(pgn_path)
 
+        gen_start = time.time()
         run_generator(pgn_path, cfg)
+        batch_metrics.RUN_DURATION.labels(stage="generator").set(time.time() - gen_start)
+
+        tag_start = time.time()
         run_tagger(cfg)
+        batch_metrics.RUN_DURATION.labels(stage="tagger").set(time.time() - tag_start)
+
         logger.info("batch complete")
+        success = True
     finally:
+        batch_metrics.RUN_DURATION.labels(stage="total").set(time.time() - run_start)
+        batch_metrics.LAST_RUN_TIMESTAMP.set_to_current_time()
+        batch_metrics.RUN_SUCCESS.set(1 if success else 0)
+        batch_metrics.push(cfg.pushgateway_url, logger)
         for p in cleanup_paths:
             p.unlink(missing_ok=True)
 
