@@ -161,11 +161,13 @@ tactician/
 │   ├── generator/     # 퍼즐 후보 발굴
 │   └── tagger/        # 테마 분류 (~60 패턴)
 ├── src/tactician/
-│   ├── batch.py       # 일배치 진입점
-│   ├── api.py         # FastAPI 앱 (HTTP 서비스)
-│   ├── db.py          # MySQL 커넥션 풀 (api 사용)
-│   ├── config.py      # 환경 설정
-│   └── adapters/      # mysql_writer (배치), mysql_reader (api), s3_reader, mysql_tagger_io
+│   ├── batch.py         # 일배치 진입점
+│   ├── api.py           # FastAPI 앱 (HTTP 서비스)
+│   ├── db.py            # MySQL 커넥션 풀 (api 사용)
+│   ├── config.py        # 환경 설정
+│   ├── metrics.py       # API Prometheus 메트릭 (커스텀 카운터 / DB 풀 게이지)
+│   ├── batch_metrics.py # 배치 Prometheus 메트릭 (종료 시 pushgateway로 push)
+│   └── adapters/        # mysql_writer (배치), mysql_reader (api), s3_reader, mysql_tagger_io
 ├── migrations/        # plain SQL 마이그레이션 (파일명 순으로 적용)
 ├── Dockerfile         # 배치 + api 공유 이미지 (Python + Stockfish 18)
 └── pyproject.toml

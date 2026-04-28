@@ -161,11 +161,13 @@ tactician/
 │   ├── generator/     # Puzzle candidate detection
 │   └── tagger/        # Theme classifier (~60 patterns)
 ├── src/tactician/
-│   ├── batch.py       # Daily batch entry point
-│   ├── api.py         # FastAPI app (HTTP service)
-│   ├── db.py          # MySQL connection pool (used by api)
-│   ├── config.py      # Environment configuration
-│   └── adapters/      # mysql_writer (batch), mysql_reader (api), s3_reader, mysql_tagger_io
+│   ├── batch.py         # Daily batch entry point
+│   ├── api.py           # FastAPI app (HTTP service)
+│   ├── db.py            # MySQL connection pool (used by api)
+│   ├── config.py        # Environment configuration
+│   ├── metrics.py       # API Prometheus metrics (custom counters / DB pool gauges)
+│   ├── batch_metrics.py # Batch Prometheus metrics (pushed to pushgateway on completion)
+│   └── adapters/        # mysql_writer (batch), mysql_reader (api), s3_reader, mysql_tagger_io
 ├── migrations/        # Plain SQL migrations (apply in filename order)
 ├── Dockerfile         # Shared image for batch + api (Python + Stockfish 18)
 └── pyproject.toml
