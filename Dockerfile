@@ -21,6 +21,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /usr/local/bin/uv
 COPY --from=sf-builder /build/Stockfish/src/stockfish /usr/local/bin/stockfish
 
 WORKDIR /app
+EXPOSE 8000
 ENV UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1 \
     UV_PYTHON_DOWNLOADS=never \
