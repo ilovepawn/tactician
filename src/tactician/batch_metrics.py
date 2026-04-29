@@ -31,6 +31,12 @@ RUN_SUCCESS = Gauge(
     registry=REGISTRY,
 )
 
+S3_FILES_DOWNLOADED = Counter(
+    "tactician_batch_s3_files_downloaded_total",
+    "PGN files pulled from S3 for the daily batch.",
+    registry=REGISTRY,
+)
+
 GAMES_PROCESSED = Counter(
     "tactician_batch_games_processed_total",
     "Games handed to the generator's analyze_game().",

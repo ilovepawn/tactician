@@ -190,7 +190,10 @@ def main() -> None:
                 else date.today() - timedelta(days=1)
             )
             logger.info(f"running batch for {target}")
-            pgn_path = download_pgn_for_date(logger, cfg.s3, target)
+            s3_start = time.time()
+            pgn_path, file_count = download_pgn_for_date(logger, cfg.s3, target)
+            batch_metrics.RUN_DURATION.labels(stage="s3_download").set(time.time() - s3_start)
+            batch_metrics.S3_FILES_DOWNLOADED.inc(file_count)
             cleanup_paths.append(pgn_path)
             if pgn_path.stat().st_size == 0:
                 logger.warning(f"no games found for {target}, skipping")

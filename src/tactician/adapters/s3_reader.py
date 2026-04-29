@@ -18,7 +18,7 @@ from tactician.config import S3Config
 
 def download_pgn_for_date(
     logger: logging.Logger, s3_config: S3Config, target_date: date
-) -> Path:
+) -> tuple[Path, int]:
     s3 = boto3.client(
         "s3",
         endpoint_url=s3_config.endpoint_url,
@@ -46,4 +46,4 @@ def download_pgn_for_date(
                     count += 1
 
     logger.info(f"downloaded {count} PGN files for {target_date} into {out_file}")
-    return out_file
+    return out_file, count
