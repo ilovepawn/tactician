@@ -64,7 +64,7 @@ docker exec ilovepawn-tactician-mysql mysql -u mwzz6 -p1234 tactician \
 ### Shared
 - `src/tactician/config.py` — Loads env vars (MySQL, S3, Stockfish, optional `PUSHGATEWAY_URL`). API also reads this on startup but only uses the MySQL section.
 - `src/tactician/metrics.py` — Custom Prometheus metrics used by the API (puzzles served by endpoint/theme, 404 counters, DB pool gauges). Registered to the default `prometheus_client` registry that `/metrics` exposes.
-- `src/tactician/batch_metrics.py` — Pushgateway-pushed metrics for the batch (run/stage durations, generator/tagger counters). Lives in its own dedicated `CollectorRegistry` to stay isolated from the API's default registry.
+- `src/tactician/batch_metrics.py` — Pushgateway-pushed metrics for the batch (run/stage durations across `s3_download`/`generator`/`tagger`/`total`, plus S3/generator/tagger counters). Lives in its own dedicated `CollectorRegistry` to stay isolated from the API's default registry.
 
 ## Key Technical Details
 
